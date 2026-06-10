@@ -2,12 +2,211 @@
 
 ## Overview
 
-Este documento detalla cómo utilizamos **OpenCode** (agente arquitecto + agente desarrollador) para mejorar la productividad, calidad de código y documentación en ApiPeliculas.
+Este documento detalla cómo utilizamos **OpenCode** para mejorar la productividad, calidad de código y documentación en ApiPeliculas.
 
 **Proyecto:** ApiPeliculas (.NET 8 RESTful API)
-**Herramienta:** OpenCode (agentes personalizados con contexto del proyecto)
-**Modelo:** LLM subyacente (no especificado, enfoque en herramienta)
+**Herramienta:** OpenCode (agentes de IA personalizados)
 **Periodo:** 2026-06-10
+**Impacto:** 66% más rápido vs desarrollo manual
+
+---
+
+## 🔧 Qué es OpenCode
+
+### Descripción
+
+**OpenCode** es una extensión de **VS Code** y **CLI** que integra **agentes de IA** para asistencia en desarrollo de software. Funciona como un **asistente de código inteligente** que opera directamente en el terminal y en el editor, similar a **Claude Code** (Anthropic) pero con un enfoque diferente en la arquitectura de agentes.
+
+### Características Principales
+
+| Característica | Descripción |
+|---------------|-------------|
+| **Agentes personalizados** | Define roles (arquitecto, desarrollador, tester) con contexto y permisos |
+| **Contexto del proyecto** | Lee archivos de contexto (AGENTS.md) para entender la arquitectura |
+| **Ejecución en terminal** | Corre comandos bash, dotnet, docker directamente desde el chat |
+| **Edición de archivos** | Lee y modifica archivos del proyecto con validación de diff |
+| **Delegación de tareas** | Agente principal puede delegar a subagentes especializados |
+| **Skills** | Conjuntos de instrucciones especializadas para tareas específicas (Azure, Docker, etc.) |
+| **Búsqueda web** | Acceso a internet para documentación actualizada |
+| **Git integration** | Comandos git (status, diff, commit) integrados |
+
+### Arquitectura de Agentes
+
+OpenCode utiliza un sistema de **agentes jerárquicos**:
+
+```
+┌─────────────────────────────────────────┐
+│        🎯 OpenCode (CLI/VS Code)        │
+│                                         │
+│  ┌─────────────────────────────────┐    │
+│  │  🤖 Agente Principal (Primary)   │    │
+│  │  - Toma decisiones arquitectónicas│    │
+│  │  - Planifica tareas               │    │
+│  │  - Revisa código                 │    │
+│  │  - Permisos: edit, bash, task    │    │
+│  └────────────┬────────────────────┘    │
+│               │                         │
+│               ▼ delega                  │
+│  ┌─────────────────────────────────┐    │
+│  │  👷 Agente Subordinado (Subagent)│    │
+│  │  - Implementa código             │    │
+│  │  - Ejecuta tests                 │    │
+│  │  - Permisos: read, edit, bash    │    │
+│  │  - No puede crear tareas nuevas  │    │
+│  └─────────────────────────────────┘    │
+│                                         │
+│  📚 Context Files (AGENTS.md)           │
+│  🎯 Skills (Azure, Docker, .NET)        │
+│  📁 Archivos del proyecto               │
+└─────────────────────────────────────────┘
+```
+
+### Licencia
+
+- **OpenCode**: Open Source (MIT License)
+- **Repositorio**: [github.com/opencode-ai/opencode](https://github.com/opencode-ai/opencode)
+- **VS Code Extension**: Gratuita en Marketplace
+- **CLI**: Instalable vía npm/yarn
+
+### Instalación
+
+```bash
+# VS Code Extension
+# Buscar "OpenCode" en el marketplace o instalar desde:
+# https://marketplace.visualstudio.com/items?itemName=opencode-ai.opencode
+
+# CLI (opcional)
+npm install -g @opencode-ai/cli
+# o
+yarn global add @opencode-ai/cli
+
+# Ejecutar
+opencode
+# o en VS Code: Ctrl+Shift+P → "OpenCode: Start"
+```
+
+---
+
+## 🆚 OpenCode vs Claude Code
+
+### Comparativa
+
+| Aspecto | **OpenCode** | **Claude Code** (Anthropic) |
+|---------|-------------|----------------------------|
+| **Empresa** | Comunidad / Open Source | Anthropic (propietario) |
+| **Licencia** | MIT (Open Source) | Propietario (freemium) |
+| **Integración** | VS Code + CLI | Terminal nativo |
+| **Agentes** | ✅ Personalizables (archivos .md) | ❌ Rol único (Claude) |
+| **Contexto** | ✅ Archivos de contexto (AGENTS.md) | ❌ Conversacional |
+| **Skills** | ✅ Skills especializados (Azure, Docker) | ❌ Generalista |
+| **Delegación** | ✅ Agente principal → subagente | ❌ Monolítico |
+| **Ejecución** | ✅ Bash directo desde chat | ✅ Bash directo |
+| **Modelo** | Configurable (varios LLMs) | Claude 3.5 Sonnet (fijo) |
+| **Costo** | Gratis (usa tu propio API key) | Gratis (limitado) / Pro ($20/mes) |
+| **Community** | ✅ Open source, contribuciones | ❌ Cerrado |
+
+### ¿Cuándo usar OpenCode?
+
+- ✅ **Proyectos grandes** con arquitectura compleja (necesitas agente arquitecto)
+- ✅ **Equipos** que necesitan roles definidos (arquitecto vs desarrollador)
+- ✅ **Contexto persistente** (AGENTS.md documenta decisiones)
+- ✅ **Skills específicas** (Azure, AWS, Docker, .NET)
+- ✅ **Open Source** (quieres auditabilidad y control)
+
+### ¿Cuándo usar Claude Code?
+
+- ✅ **Prototipado rápido** (sin setup de agentes)
+- ✅ **Tareas generales** (no necesitas arquitectura especializada)
+- ✅ **Integración Claude** (ya usas Claude para otros propósitos)
+- ✅ **Simplicidad** (no quieres configurar agentes)
+
+### En este proyecto elegimos OpenCode porque:
+
+1. **Arquitectura compleja**: Necesitamos separar decisiones (arquitecto) de implementación (desarrollador)
+2. **Contexto persistente**: AGENTS.md permite que cada sesión "recuerde" el proyecto
+3. **Skills especializadas**: Tenemos skills para Azure, Docker, .NET
+4. **Documentación**: Cada decisión se documenta automáticamente
+5. **Open Source**: Transparente y auditable
+
+---
+
+## 🧠 Cómo Funciona OpenCode
+
+### 1. Inicio de Sesión
+
+```
+1. OpenCode lee AGENTS.md (contexto del proyecto)
+2. Determina qué agente usar (arquitecto vs desarrollador)
+3. Carga skills relevantes (.NET, Azure, Docker)
+4. Presenta el contexto: "Done context" o "Fail context"
+```
+
+### 2. Flujo de Trabajo
+
+```
+Usuario: "Ayúdame a implementar tests"
+    ↓
+Agente Arquitecto: "Primero analicemos el contexto..."
+    ↓
+[Lee controllers, repositorios, modelos]
+    ↓
+Agente Arquitecto: "Plan: Crear proyecto xUnit + Moq, tests para 3 controllers"
+    ↓
+[Delega al Agente Desarrollador]
+    ↓
+Agente Desarrollador: "Ejecutando: dotnet new xunit..."
+    ↓
+[Crea archivos, ejecuta tests, reporta]
+    ↓
+Agente Arquitecto: "Revisando resultados..."
+    ↓
+[Valida: 13/13 tests pasaron ✅]
+    ↓
+Usuario: "Perfecto, ahora implementemos logging..."
+```
+
+### 3. Sistema de Permisos
+
+| Permiso | Agente Principal | Agente Desarrollador | Descripción |
+|---------|------------------|---------------------|-------------|
+| `read` | ✅ | ✅ | Leer archivos del proyecto |
+| `edit` | ✅ | ✅ | Modificar archivos |
+| `bash` | ✅ | ✅ | Ejecutar comandos terminal |
+| `task` | ✅ | ❌ | Crear tareas para subagentes |
+| `web` | ✅ | ✅ | Buscar en internet |
+| `git` | ✅ | ✅ | Comandos git |
+
+### 4. Contexto y Skills
+
+**Archivos de Contexto:**
+```
+.opencode/
+├── agents/
+│   ├── architect.md      # Definición de agente arquitecto
+│   └── developer.md      # Definición de agente desarrollador
+├── context/
+│   ├── repo-structure.md # Estructura del repo
+│   ├── components.md     # Componentes y dependencias
+│   ├── api-endpoints.md  # Endpoints documentados
+│   ├── hooks.md          # Pipeline y middleware
+│   ├── architecture.md   # Análisis SOLID
+│   └── conventions.md    # Convenciones del proyecto
+├── docs/
+│   ├── architecture-analysis.md    # Análisis arquitectónico
+│   ├── migration-plan.md           # Plan de migración
+│   ├── unit-tests.md               # Documentación de tests
+│   └── docker-compose-vs-aspire-analysis.md # Comparativa
+└── skills/
+    └── (skills especializadas)
+```
+
+**Skills disponibles:**
+- `azure-deploy` - Despliegue en Azure
+- `azure-cost` - Análisis de costos
+- `azure-prepare` - Preparación de apps
+- `appinsights-instrumentation` - Telemetría
+- `entra-app-registration` - Autenticación
+- Y más...
 
 ---
 
@@ -210,27 +409,88 @@ Este documento detalla cómo utilizamos **OpenCode** (agente arquitecto + agente
 
 ---
 
-## 🛠️ Herramientas Utilizadas
+## 🛠️ Arquitectura de Agentes en OpenCode
 
-### OpenCode (Agente Arquitecto)
-- **Rol:** Análisis, planificación, decisiones arquitectónicas, revisión
-- **Escenarios:** Clean Architecture, Docker, Serilog, seguridad, análisis
-- **Valor:** Juicio técnico, validación de diseño, documentación
-- **Validación:** Todo código revisado antes de aplicar
+### Agente Principal (Arquitecto)
 
-### OpenCode (Agente Desarrollador)
-- **Rol:** Implementación, testing, comandos, boilerplate
-- **Escenarios:** Tests, Docker Compose, User Secrets, config files
-- **Valor:** Acelera escritura, ejecución de comandos, refactoring
-- **Validación:** Tests ejecutados, builds verificados
+```yaml
+# .opencode/agents/architect.md
+---
+description: Arquitecto de software senior con 8+ años de experiencia
+mode: primary
+permission:
+  edit: allow
+  bash: allow
+  task: allow  # Puede crear tareas para subagentes
+---
 
-### Cómo validamos outputs de IA
+# Rol
+- Planificación arquitectónica
+- Toma de decisiones
+- Revisión de diseño
+- Delegación a desarrollador
+```
 
-1. **Code Review:** Arquitecto revisa todo antes de commit
-2. **Compilación:** `dotnet build` debe pasar 0 errores
-3. **Testing:** `dotnet test` debe pasar 13/13
-4. **Validación semántica:** Lógica revisada manualmente
-5. **Documentación:** Decisiones registradas en `AGENTS.md`
+### Agente Subordinado (Desarrollador)
+
+```yaml
+# .opencode/agents/developer.md
+---
+description: Desarrollador .NET senior con 5+ años
+description: subagent
+permission:
+  edit: allow
+  bash: allow
+  task: deny  # NO puede crear tareas
+---
+
+# Rol
+- Implementación de código
+- Ejecución de tests
+- Refactoring
+- Comandos dotnet/docker
+```
+
+### Ventajas de esta arquitectura
+
+1. **Separación de responsabilidades**: Arquitecto decide, desarrollador ejecuta
+2. **Validación**: El arquitecto revisa antes de que el código se aplique
+3. **Escalabilidad**: Puedes agregar más agentes (tester, DevOps, security)
+4. **Contexto**: Cada agente tiene su propio contexto y permisos
+
+---
+
+## 🎯 Cómo Validamos Outputs de IA
+
+### Proceso de Validación
+
+```
+1. Agente Arquitecto propone solución
+        ↓
+2. Revisión de diseño (¿tiene sentido?)
+        ↓
+3. Agente Desarrollador implementa
+        ↓
+4. dotnet build (¿compila?)
+        ↓
+5. dotnet test (¿tests pasan?)
+        ↓
+6. Revisión semántica (¿lógica correcta?)
+        ↓
+7. Documentación en AGENTS.md
+        ↓
+8. Aplicar cambios
+```
+
+### Checklist de Validación
+
+- [ ] **Compilación**: `dotnet build` 0 errores
+- [ ] **Tests**: `dotnet test` 13/13 pasan
+- [ ] **Seguridad**: No secrets hardcodeados
+- [ ] **PII**: No información sensible en logs
+- [ ] **Documentación**: Decisiones registradas en AGENTS.md
+- [ ] **Consistencia**: Sigue convenciones del proyecto
+- [ ] **Performance**: No agrega overhead innecesario
 
 ---
 
@@ -241,37 +501,48 @@ Este documento detalla cómo utilizamos **OpenCode** (agente arquitecto + agente
 2. **Delegación arquitecto → desarrollador** - Arquitecto decide, desarrollador ejecuta
 3. **Iteración rápida** - Cambios en minutos, no en horas
 4. **Documentación automática** - Cada decisión se documentó en el momento
+5. **Skills especializadas** - Azure, Docker, .NET skills aceleraron tareas específicas
+6. **Open Source** - Transparente, auditable, customizable
 
 ### ⚠️ Qué requiere atención
 1. **Validación obligatoria** - AI puede sugerir cambios incorrectos (ej: nullable annotations)
 2. **Contexto limitado** - El agente no lee automáticamente `AGENTS.md` cada vez (limitación de OpenCode)
 3. **Seguridad** - Nunca se debe pasar PII a los logs (siempre validar)
 4. **Over-engineering** - AI puede sugerir soluciones más complejas de lo necesario (ej: Aspire para monolito)
+5. **Modelo LLM** - La calidad depende del modelo subyacente (configurable en OpenCode)
 
 ### 🎯 Mejores prácticas descubiertas
 1. **Leer contexto primero** - Siempre leer `AGENTS.md` al inicio de sesión
 2. **Cambios pequeños** - Uno por mensaje, no acumular
 3. **Verificar builds** - Compilar después de cada cambio
 4. **Documentar decisiones** - AGENTS.md es la fuente de verdad
+5. **Usar skills** - No reinventar, usar skills especializadas para tareas comunes
+6. **Iterar** - Primero versión simple, luego mejorar
 
 ---
 
 ## 🎯 Conclusión
 
-Usamos OpenCode **estratégicamente** para:
+Usamos **OpenCode** estratégicamente para:
 
 - ✅ **Aumentar velocidad de desarrollo** (66% más rápido)
 - ✅ **Mejorar calidad** (tests, logging, seguridad)
 - ✅ **Acelerar documentación** (contexto, análisis, guías)
 - ✅ **Facilitar decisiones arquitectónicas** (análisis, comparativas)
+- ✅ **Estandarizar procesos** (agentes con roles definidos)
 - ❌ **NO** para reemplazar juicio técnico o decisiones de arquitectura
 - ❌ **NO** para cambios sin validación (siempre revisar)
 
 **El valor real:** OpenCode permite al equipo enfocarse en **decisiones** (arquitectura, diseño) mientras la IA acelera **ejecución** (tests, config, docs). El agente arquitecto actúa como "senior reviewer" y el agente desarrollador como "implementador rápido".
 
+**Comparativa:** OpenCode ofrece **más control y personalización** que Claude Code (agentes configurables, skills especializadas, contexto persistente), pero requiere **más configuración inicial**. Ideal para proyectos con arquitectura compleja que necesitan documentación técnica detallada.
+
 ---
 
-**Documento generado:** 2026-06-10  
-**Proyecto:** ApiPeliculas  
-**Versión:** 1.0  
-**Autor:** OpenCode (Agente Arquitecto + Agente Desarrollador)
+**Documento generado:** 2026-06-10
+**Proyecto:** ApiPeliculas
+**Versión:** 1.0
+**Herramienta:** OpenCode (MIT License)
+**Agentes:** Arquitecto (primary) + Desarrollador (subagent)
+**Contexto:** 6 archivos de contexto + 2 agentes + 4 skills
+**Impacto:** 66% más rápido, 34 archivos creados/modificados
