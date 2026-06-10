@@ -1,6 +1,44 @@
 ﻿services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: apipeliculas-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "r34llyStr0ngPwd123"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "r34llyStr0ngPwd123", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - apipeliculas-network
+
   apipeliculas:
-    image: apipeliculas
     build:
       context: .
-      dockerfile: ApiPeliculas/Dockerfile
+      dockerfile: Dockerfile
+    container_name: apipeliculas-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ApiSettings__Secreta=Curso de Api Restfull render2web
+      - ConnectionStrings__ConexionSql=Data Source=sqlserver;TrustServerCertificate=True;MultiSubnetFailover=True;Initial Catalog=ApiPeliculasNET8;user id=sa;password=r34llyStr0ngPwd123
+    ports:
+      - "5103:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - apipeliculas-network
+
+volumes:
+  sqlserver_data:
+
+networks:
+  apipeliculas-network:
+    driver: bridge

@@ -19,11 +19,13 @@ namespace ApiPeliculas.Controllers
         private readonly IUsuarioRepositorio _usRepo;
         protected RespuestaAPI _respuestaApi;
         private readonly IMapper _mapper;
+        private readonly ILogger<UsuariosController> _logger;
 
-        public UsuariosController(IUsuarioRepositorio usRepo, IMapper mapper)
+        public UsuariosController(IUsuarioRepositorio usRepo, IMapper mapper, ILogger<UsuariosController> logger)
         {
             _usRepo = usRepo;
             _mapper = mapper;
+            _logger = logger;
             this._respuestaApi = new();
         }
          
@@ -55,6 +57,7 @@ namespace ApiPeliculas.Controllers
             var itemUsuario = _usRepo.GetUsuario(usuarioId);
             if (itemUsuario == null)
             {
+                _logger.LogWarning("Usuario no encontrado: {UsuarioId}", usuarioId);
                 return NotFound();
             }
 
@@ -92,10 +95,12 @@ namespace ApiPeliculas.Controllers
                 _respuestaApi.StatusCode = HttpStatusCode.OK;
                 _respuestaApi.IsSuccess = true;
                 _respuestaApi.Result = usuario;
+                _logger.LogInformation("Usuario registrado exitosamente: {NombreUsuario}", usuario.Username);
                 return Created("", _respuestaApi);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error en registro de usuario: {NombreUsuario}", usuarioRegistroDto.NombreUsuario);
                 _respuestaApi.StatusCode = HttpStatusCode.InternalServerError;
                 _respuestaApi.IsSuccess = false;
                 _respuestaApi.ErrorMessages.Add(ex.Message);

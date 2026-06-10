@@ -24,7 +24,9 @@ Api RESTful desarrollada en **.NET 8** para la gestión de películas y categor�
 - **AutoMapper** (mapeo de entidades a DTOs)
 - **Asp.Versioning.Mvc** (versionamiento de API)
 - **Swashbuckle.AspNetCore** (Swagger/OpenAPI)
-- **Docker** (con soporte para Linux)
+- **Serilog** + **Serilog.AspNetCore** (logging estructurado con soporte JSON para cloud)
+- **xUnit** + **Moq** (unit testing)
+- **Docker** + **Docker Compose** (con soporte para Linux)
 
 ## Requisitos Previos
 
@@ -41,15 +43,20 @@ git clone <url-del-repositorio>
 cd ApiPeliculas
 ```
 
-### 2. Configurar la base de datos
+### 2. Configurar Secrets (User Secrets)
 
-La connection string está configurada en `ApiPeliculas/appsettings.json` apuntando a `localhost`:
+Los secrets sensibles (JWT key y connection string) **no están hardcodeados** en el código. Se gestionan mediante **ASP.NET Core User Secrets**:
 
-```json
-"ConnectionStrings": {
-  "ConexionSql": "Data Source=localhost;TrustServerCertificate=True;MultiSubnetFailover=True;Initial Catalog=ApiPeliculasNET8;user id=sa;password=r34llyStr0ngPwd123"
-}
+```bash
+# Verificar que User Secrets esté inicializado (ya configurado en el proyecto)
+dotnet user-secrets list --project ApiPeliculas/ApiPeliculas.csproj
+
+# Si necesitas configurarlos por primera vez:
+dotnet user-secrets set "ApiSettings:Secreta" "tu-jwt-secret" --project ApiPeliculas/ApiPeliculas.csproj
+dotnet user-secrets set "ConnectionStrings:ConexionSql" "Data Source=localhost;TrustServerCertificate=True;MultiSubnetFailover=True;Initial Catalog=ApiPeliculasNET8;user id=sa;password=r34llyStr0ngPwd123" --project ApiPeliculas/ApiPeliculas.csproj
 ```
+
+### 3. Configurar la base de datos
 
 Asegúrate de que SQL Server esté corriendo y accesible. Si usas Docker:
 
@@ -59,13 +66,13 @@ docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=r34llyStr0ngPwd123" \
   -d mcr.microsoft.com/mssql/server:2022-latest
 ```
 
-### 3. Aplicar migraciones
+### 4. Aplicar migraciones
 
 ```bash
 dotnet ef database update --project ApiPeliculas
 ```
 
-### 4. Ejecutar la API
+### 5. Ejecutar la API
 
 ```bash
 dotnet run --project ApiPeliculas --launch-profile http
@@ -116,10 +123,17 @@ ApiPeliculas/
 │   │   └── ImagenesPeliculas/  # Almacenamiento de imágenes
 │   ├── Program.cs
 │   ├── appsettings.json
+│   ├── appsettings.Development.json
 │   └── ApiPeliculas.csproj
+├── ApiPeliculas.Tests/      # Unit Tests (xUnit + Moq)
+│   └── Controllers/
+│       ├── CategoriasControllerTests.cs
+│       ├── PeliculasControllerTests.cs
+│       └── UsuariosControllerTests.cs
 ├── ApiPeliculas.sln
 ├── Dockerfile
 ├── compose.yaml
+├── .env.example
 └── global.json
 ```
 
@@ -249,6 +263,106 @@ La API utiliza `RespuestaAPI` para respuestas estandarizadas:
 - URLs de imagen accesibles públicamente: `http://localhost:5103/ImagenesPeliculas/{nombre}.png`
 - Si no se sube imagen, se asigna una imagen placeholder (`https://placehold.co/600x400`)
 
+## Unit Tests
+
+El proyecto incluye **13 unit tests** con **xUnit** y **Moq** para los 3 controllers principales:
+
+| Controller | Tests | Escenarios |
+|-----------|-------|------------|
+| `CategoriasController` | 4 | Get lista, get by ID, lista vacía, not found |
+| `PeliculasController` | 5 | Paginación, not found, excepción, get by ID |
+| `UsuariosController` | 4 | Registro exitoso, duplicado, fallido, excepción |
+
+### Ejecutar tests
+
+```bash
+# Ejecutar todos los tests
+dotnet test ApiPeliculas.Tests/ApiPeliculas.Tests.csproj
+
+# Con verbose
+dotnet test ApiPeliculas.Tests/ApiPeliculas.Tests.csproj --verbosity normal
+```
+
+### Patrón de testing
+
+- **Mocking** de repositorios con `Mock<T>` (sin base de datos real)
+- **AAA Pattern** (Arrange-Act-Assert)
+- Cobertura de happy path, validaciones de negocio, edge cases y excepciones
+
+## Logging Estructurado (Serilog)
+
+La API implementa **logging estructurado** con **Serilog** para observabilidad cloud-native:
+
+### Características
+
+- **Formato JSON** en producción (compatible con AWS CloudWatch, Azure Monitor)
+- **Formato legible** en desarrollo
+- **Request logging** automático (tiempo, status code, método, path)
+- **Enriquecimiento** de logs con `Application`, `Environment`, `MachineName`
+- **Captura de excepciones** con stack trace completo en todos los catch blocks
+
+### Ejemplo de log en producción (JSON)
+
+```json
+{
+  "@t": "2026-06-10T20:15:30.123Z",
+  "@l": "Error",
+  "@m": "Error al recuperar películas. PageNumber=1, PageSize=10",
+  "PageNumber": 1,
+  "PageSize": 10,
+  "Application": "ApiPeliculas",
+  "Environment": "Production"
+}
+```
+
+### Niveles de log implementados
+
+| Nivel | Uso | Ejemplo |
+|-------|-----|---------|
+| `LogInformation` | Operaciones exitosas | "Película creada: {Id}" |
+| `LogWarning` | Eventos esperados (404, duplicados) | "Película no encontrada: {Id}" |
+| `LogError` | Excepciones y errores | "Error al recuperar películas: {Page}" |
+
+## Docker Compose (Desarrollo Completo)
+
+El entorno de desarrollo incluye **SQL Server + API** en Docker Compose:
+
+### Iniciar
+
+```bash
+# Copiar variables de entorno
+cp .env.example .env
+
+# Iniciar SQL Server + API
+docker compose up -d
+
+# Aplicar migraciones (primera vez)
+docker compose exec apipeliculas dotnet ef database update --project ApiPeliculas
+```
+
+### Servicios
+
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| `sqlserver` | `1433` | SQL Server 2022 (Developer) |
+| `apipeliculas` | `5103` | API .NET 8 + Swagger |
+
+### Comandos útiles
+
+```bash
+# Ver logs
+docker compose logs -f apipeliculas
+docker compose logs -f sqlserver
+
+# Detener
+docker compose down
+
+# Limpiar todo (incluyendo datos)
+docker compose down -v
+```
+
+> **Nota**: `compose.yaml` usa `dockerfile: Dockerfile` (raíz del repo). Verifica que apunte correctamente.
+
 ## Seguridad
 
 - **JWT Bearer** para autenticación stateless
@@ -256,21 +370,30 @@ La API utiliza `RespuestaAPI` para respuestas estandarizadas:
 - **CORS** restringido a `http://localhost:5103` en desarrollo
 - **Response Caching** de 30 segundos para endpoints GET públicos
 - Validación de inputs con **Data Annotations** y **ModelState**
-- La clave JWT (`ApiSettings:Secreta`) se lee desde `appsettings.json`
+- **Secrets** gestionados via **User Secrets** (desarrollo) o **Variables de Entorno** (producción)
+- **NO** hay secrets hardcodeados en `appsettings.json` (valores vacíos/placeholders)
 
-> ⚠️ **Nota**: El proyecto está configurado para desarrollo local. En producción, usa Azure Key Vault o variables de entorno para secrets y connection strings.
+### Configuración de CORS
 
-## Docker
+```csharp
+// Solo permite el origen de desarrollo
+builder.Services.AddCors(p => p.AddPolicy("PoliticaCors", build =>
+{
+    build.WithOrigins("http://localhost:5103")
+         .AllowAnyMethod()
+         .AllowAnyHeader();
+}));
+```
 
-El repositorio incluye un `Dockerfile` en la raíz que:
-- Compila la aplicación en .NET 8 SDK
-- Publica en `/app/publish`
-- Expone los puertos `8080` y `8081`
+### Gestión de Secrets
 
-> ⚠️ **Nota**: El archivo `compose.yaml` referencia `ApiPeliculas/Dockerfile`, pero el Dockerfile actual está en la raíz del repo. Para usar Docker Compose, actualiza `compose.yaml`:
-> ```yaml
-> dockerfile: Dockerfile
-> ```
+| Entorno | Método | Archivo |
+|---------|--------|---------|
+| **Desarrollo** | User Secrets | Almacenado localmente en `~/.microsoft/usersecrets/` |
+| **Docker** | Variables de entorno | `.env` o `compose.yaml` |
+| **Producción** | Azure Key Vault / AWS Secrets Manager | Configurado en CI/CD |
+
+> ⚠️ **Nota**: El proyecto está configurado para desarrollo local. En producción, usa Azure Key Vault o AWS Secrets Manager para secrets y connection strings.
 
 ## Convenciones del Proyecto
 

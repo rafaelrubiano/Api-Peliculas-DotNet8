@@ -20,11 +20,13 @@ namespace ApiPeliculas.Controllers.V1
     {
         private readonly ICategoriaRepositorio _ctRepo;
         private readonly IMapper _mapper;
+        private readonly ILogger<CategoriasController> _logger;
 
-        public CategoriasController(ICategoriaRepositorio ctRepo, IMapper mapper)
+        public CategoriasController(ICategoriaRepositorio ctRepo, IMapper mapper, ILogger<CategoriasController> logger)
         {
             _ctRepo = ctRepo;
             _mapper = mapper;
+            _logger = logger;
         }
 
         [AllowAnonymous]
@@ -69,6 +71,7 @@ namespace ApiPeliculas.Controllers.V1
             var itemCategoria = _ctRepo.GetCategoria(CategoriaId);
             if (itemCategoria == null)
             {
+                _logger.LogWarning("Categoría no encontrada: {CategoriaId}", CategoriaId);
                 return NotFound();
             }
 
@@ -96,6 +99,7 @@ namespace ApiPeliculas.Controllers.V1
 
             if (_ctRepo.ExisteCategoria(crearCategoriaDto.Nombre))
             {
+                _logger.LogWarning("Intento de crear categoría duplicada: {Nombre}", crearCategoriaDto.Nombre);
                 ModelState.AddModelError("", "La categoría ya existe!");
                 return StatusCode(404, ModelState);
             }
@@ -104,10 +108,12 @@ namespace ApiPeliculas.Controllers.V1
             
             if (!_ctRepo.CrearCategoria(categoria))
             {
+                _logger.LogError("Error al crear categoría: {Nombre}", categoria.Nombre);
                 ModelState.AddModelError("", $"Algo salió mal guardando el registro {categoria.Nombre}");
                 return StatusCode(500, ModelState);
             }
-            
+
+            _logger.LogInformation("Categoría creada exitosamente: {CategoriaId} - {Nombre}", categoria.Id, categoria.Nombre);
             return CreatedAtRoute("GetCategoria", new {CategoriaId = categoria.Id}, categoria);
         }
         

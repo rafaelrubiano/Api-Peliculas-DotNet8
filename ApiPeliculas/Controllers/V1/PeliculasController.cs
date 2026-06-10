@@ -16,11 +16,13 @@ namespace ApiPeliculas.Controllers.V1
     {
         private readonly IPeliculaRepositorio _pelRepo;
         private readonly IMapper _mapper;
+        private readonly ILogger<PeliculasController> _logger;
 
-        public PeliculasController(IPeliculaRepositorio pelRepo, IMapper mapper)
+        public PeliculasController(IPeliculaRepositorio pelRepo, IMapper mapper, ILogger<PeliculasController> logger)
         {
             _pelRepo = pelRepo;
             _mapper = mapper;
+            _logger = logger;
         }
         
         // V1
@@ -68,9 +70,10 @@ namespace ApiPeliculas.Controllers.V1
 
                 return Ok(response);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "Error recuperando datos de la aplicaión");
+                _logger.LogError(ex, "Error al recuperar películas. PageNumber={PageNumber}, PageSize={PageSize}", pageNumber, pageSize);
+                return StatusCode(StatusCodes.Status500InternalServerError, "Error recuperando datos de la aplicación");
             }
         }
         
@@ -86,6 +89,7 @@ namespace ApiPeliculas.Controllers.V1
             var itemPelicula = _pelRepo.GetPelicula(peliculaId);
             if (itemPelicula == null)
             {
+                _logger.LogWarning("Película no encontrada: {PeliculaId}", peliculaId);
                 return NotFound();
             }
 
@@ -157,6 +161,7 @@ namespace ApiPeliculas.Controllers.V1
             }
 
             _pelRepo.CrearPelicula(pelicula);
+            _logger.LogInformation("Película creada exitosamente: {PeliculaId} - {Nombre}", pelicula.Id, pelicula.Nombre);
             return CreatedAtRoute("GetPelicula", new {PeliculaId = pelicula.Id}, pelicula);
         }
         
@@ -274,8 +279,9 @@ namespace ApiPeliculas.Controllers.V1
                 // }
                 return Ok(itemPelicula);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Error al recuperar películas en categoría {CategoriaId}", categoriaId);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Error recuperando datos de la aplicación");
             }
             
@@ -299,8 +305,9 @@ namespace ApiPeliculas.Controllers.V1
                 var peliculaDto = _mapper.Map<IEnumerable<PeliculaDto>>(peliculas);
                 return Ok(peliculaDto);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Error al buscar películas por nombre. Término de búsqueda: {NombreBusqueda}", nombre);
                 return StatusCode(StatusCodes.Status500InternalServerError, "Error recuperando datos de la aplicación");
             } 
         }

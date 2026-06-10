@@ -11,8 +11,48 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Compact;
 
-var builder = WebApplication.CreateBuilder(args);
+// Configurar Serilog al inicio para capturar logs de startup
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(
+        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateBootstrapLogger();
+
+Log.Information("=== ApiPeliculas - Iniciando aplicación ===");
+
+try
+{
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Configurar Serilog como logger principal
+    builder.Host.UseSerilog((context, services, loggerConfiguration) =>
+    {
+        loggerConfiguration
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .Enrich.WithProperty("Application", "ApiPeliculas")
+            .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName);
+
+        // En Development: formato legible para humanos
+        if (context.HostingEnvironment.IsDevelopment())
+        {
+            loggerConfiguration.WriteTo.Console(
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+        }
+        // En Production/Staging: formato JSON para cloud ingestion (AWS CloudWatch, Azure Monitor)
+        else
+        {
+            loggerConfiguration.WriteTo.Console(new CompactJsonFormatter());
+        }
+    });
 
 // Add services to the container.
 builder.Services.AddDbContext<ApplicationDbContext>(opciones =>
@@ -198,6 +238,28 @@ app.UseCors("PoliticaCors");
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Logging de requests HTTP con Serilog (timing, status code, etc.)
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
+        diagnosticContext.Set("RequestScheme", httpContext.Request.Scheme);
+    };
+});
+
 app.MapControllers();
 
 app.Run();
+
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "=== ApiPeliculas - La aplicación terminó inesperadamente ===");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
