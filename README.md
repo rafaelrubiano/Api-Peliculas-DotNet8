@@ -2,6 +2,311 @@
 
 Api RESTful desarrollada en **.NET 8** para la gestión de películas y categorías, con autenticación JWT, almacenamiento de imágenes, paginación y versionamiento de APIs.
 
+## Arquitectura del Proyecto
+
+```mermaid
+graph TB
+    subgraph Client["🌐 Cliente"]
+        Swagger["Swagger UI / Postman"]
+        WebApp["Web App"]
+    end
+
+    subgraph Api["📦 ApiPeliculas API"]
+        direction TB
+        
+        Controllers["🎮 Controllers<br/>V1/V2 + Auth"]
+        Repositories["📦 Repositories<br/>Categoria/Pelicula/Usuario"]
+        Models["📋 Models<br/>Entities + DTOs"]
+        Mapper["🔄 AutoMapper<br/>PeliculasMapper"]
+        
+        subgraph CrossCutting["⚙️ Cross-Cutting"]
+            Serilog["🔍 Serilog<br/>Structured Logging"]
+            JWT["🔐 JWT Auth<br/>Bearer + Identity"]
+            CORS["🔗 CORS<br/>localhost:5103"]
+            Cache["💾 Cache<br/>30s Profile"]
+            Versioning["📌 API Versioning<br/>v1/v2"]
+        end
+    end
+
+    subgraph Database["🗄️ Database"]
+        SQLServer["SQL Server<br/>ApiPeliculasNET8"]
+        Identity["Identity Tables<br/>AspNetUsers/Roles"]
+    end
+
+    subgraph Storage["📁 Storage"]
+        Images["wwwroot/ImagenesPeliculas/"]
+    end
+
+    subgraph DevOps["🐳 DevOps"]
+        Docker["Docker Compose<br/>API + SQL Server"]
+    end
+
+    Swagger -->|HTTP| Controllers
+    WebApp -->|HTTP| Controllers
+    
+    Controllers -->|uses| JWT
+    Controllers -->|uses| CORS
+    Controllers -->|uses| Cache
+    Controllers -->|uses| Versioning
+    Controllers -->|uses| Repositories
+    Controllers -->|uses| Mapper
+    Controllers -->|uses| Serilog
+    
+    Repositories -->|CRUD| Models
+    Mapper -->|maps| Models
+    
+    Repositories -->|EF Core| SQLServer
+    Repositories -->|Identity| Identity
+    
+    Controllers -->|File Upload| Images
+    
+    Docker -->|orchestrates| Api
+    Docker -->|orchestrates| Database
+
+    style Api fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style CrossCutting fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Database fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+```
+
+> 💡 **Tip:** GitHub renderiza automáticamente los diagramas Mermaid. Si estás en VS Code, usa la extensión [Markdown Preview Mermaid Support](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid) para verlo en la preview.
+
+## Diagramas del Proyecto
+
+### Diagrama 2: Arquitectura Target (Clean Architecture)
+
+```mermaid
+graph LR
+    subgraph Domain["🏛️ Domain Layer"]
+        Entities["Entities<br/>Categoria, Pelicula, Usuario"]
+        ValueObjects["Value Objects"]
+        DomainEvents["Domain Events"]
+        Interfaces["Repository Interfaces"]
+    end
+
+    subgraph Application["📋 Application Layer"]
+        UseCases["Use Cases / CQRS<br/>Commands & Queries"]
+        DTOs["DTOs<br/>Request/Response"]
+        Validators["Validators<br/>FluentValidation"]
+        InterfacesApp["Service Interfaces"]
+    end
+
+    subgraph Infrastructure["🔧 Infrastructure Layer"]
+        Repositories["Repositories<br/>EF Core Implementation"]
+        Identity["Identity<br/>ASP.NET Core"]
+        Storage["File Storage<br/>Local/Azure Blob"]
+        Email["Email Service"]
+    end
+
+    subgraph API["🌐 API Layer"]
+        Controllers["Controllers<br/>V1/V2"]
+        Middleware["Middleware<br/>Auth/Logging/Error"]
+        Filters["Filters<br/>Validation"]
+    end
+
+    subgraph External["🔗 External Services"]
+        DB["SQL Server"]
+        AuthProvider["Auth Provider"]
+        CloudStorage["Cloud Storage"]
+    end
+
+    API -->|depends on| Application
+    Application -->|depends on| Domain
+    Infrastructure -->|depends on| Domain
+    Infrastructure -->|depends on| Application
+    
+    Infrastructure -->|uses| DB
+    Infrastructure -->|uses| AuthProvider
+    Infrastructure -->|uses| CloudStorage
+    
+    style Domain fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
+    style Application fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
+    style Infrastructure fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style API fill:#fce4ec,stroke:#c62828,stroke-width:2px
+```
+
+> 🎯 **Target**: Arquitectura limpia con separación de responsabilidades (Domain → Application → Infrastructure → API). Dependencias siempre hacia adentro.
+
+### Diagrama 3: Docker Compose (Desarrollo)
+
+```mermaid
+graph TB
+    subgraph DockerHost["🐳 Docker Host"]
+        
+        subgraph Network["📡 apipeliculas-network<br/>(bridge)"]
+            
+            subgraph SQLService["🗄️ sqlserver"]
+                SQLImage["mcr.microsoft.com/mssql/server:2022-latest"]
+                SQLPort["Port: 1433"]
+                SQLVolume["Volume:<br/>sqlserver_data"]
+                SQLHealth["Health Check:<br/>sqlcmd -Q SELECT 1"]
+            end
+            
+            subgraph APIService["📦 apipeliculas"]
+                APIBuild["Build:<br/>Dockerfile"]
+                APIPort["Port: 5103 → 8080"]
+                APIEnv["Env:<br/>ASPNETCORE_ENVIRONMENT=Development"]
+                APISecrets["Secrets:<br/>JWT + ConnectionString"]
+                APIDepends["depends_on:<br/>sqlserver (healthy)"]
+            end
+            
+        end
+        
+    end
+
+    Client["👤 Developer"] -->|localhost:5103| APIService
+    Client -->|localhost:1433| SQLService
+    
+    APIService -->|Data Source=sqlserver| SQLService
+    
+    style SQLService fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style APIService fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
+```
+
+> 🐳 **Desarrollo**: Orquestación con SQL Server 2022 + API .NET 8. Health checks aseguran que SQL Server esté listo antes de iniciar la API.
+
+### Diagrama 4: Flow de una Request (Autenticada)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Cliente
+    participant API as API Controller
+    participant Auth as JWT Middleware
+    participant Log as Serilog
+    participant Repo as Repository
+    participant DB as SQL Server
+    participant Cache as Response Cache
+
+    Client->>+API: POST /api/v1.0/categorias
+    Note right of Client: Bearer <token>
+    
+    API->>+Auth: Validar JWT
+    Auth-->>-API: Usuario: Admin
+    Note right of Auth: ValidateIssuerSigningKey<br/>Role: Admin
+    
+    API->>+Log: LogInformation("Creando categoría...")
+    
+    API->>+Repo: CrearCategoria(categoria)
+    Repo->>+DB: INSERT INTO Categorias
+    DB-->>-Repo: Id = 1
+    Repo-->>-API: true
+    
+    API->>+Log: LogInformation("Categoría creada: {Id}")
+    
+    API->>Cache: Invalidate Cache (si aplica)
+    
+    API-->>-Client: 201 Created<br/>Location: /api/v1.0/categorias/1
+    
+    Note right of API: Response:<br/>{ id: 1, nombre: "Acción" }
+```
+
+> 🔐 **Autenticación**: JWT Bearer → Validación de roles → Logging → Repository → Cache → Response. Cada paso se registra en Serilog.
+
+### Diagrama 5: Security & Secrets Hierarchy
+
+```mermaid
+graph LR
+    subgraph ConfigHierarchy["🏛️ Configuration Hierarchy<br/>Priority: Low → High"]
+        direction TB
+        
+        Appsettings["1️⃣ appsettings.json<br/>Placeholders / Defaults"]
+        DevSettings["2️⃣ appsettings.Development.json<br/>Dev Overrides"]
+        UserSecrets["3️⃣ User Secrets<br/>🔒 Sensitive Data"]
+        EnvVars["4️⃣ Environment Variables<br/>🔒 Docker / Production"]
+        CLIArgs["5️⃣ CLI Arguments<br/>Runtime Overrides"]
+        
+        Appsettings -->|overridden by| DevSettings
+        DevSettings -->|overridden by| UserSecrets
+        UserSecrets -->|overridden by| EnvVars
+        EnvVars -->|overridden by| CLIArgs
+    end
+
+    subgraph Secrets["🔐 Secrets Managed"]
+        JWT["JWT Signing Key<br/>ApiSettings:Secreta"]
+        DBConn["Connection String<br/>ConnectionStrings:ConexionSql"]
+    end
+
+    subgraph Development["💻 Development"]
+        DevLocal["User Secrets Store<br/>~/.microsoft/usersecrets/"]
+    end
+
+    subgraph Docker["🐳 Docker"]
+        DockerEnv[".env file<br/>compose.yaml"]
+    end
+
+    subgraph Production["☁️ Production"]
+        Azure["Azure Key Vault"]
+        AWS["AWS Secrets Manager"]
+    end
+
+    UserSecrets -->|stores| JWT
+    UserSecrets -->|stores| DBConn
+    DevLocal -->|contains| UserSecrets
+    
+    EnvVars -->|stores| JWT
+    EnvVars -->|stores| DBConn
+    DockerEnv -->|contains| EnvVars
+    
+    Azure -->|stores| JWT
+    Azure -->|stores| DBConn
+    AWS -->|stores| JWT
+    AWS -->|stores| DBConn
+    
+    style UserSecrets fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style EnvVars fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
+    style Secrets fill:#fff3e0,stroke:#e65100,stroke-width:2px
+```
+
+> 🔐 **Jerarquía**: Configuración en cascada. User Secrets en desarrollo, Environment Variables en Docker, Azure Key Vault / AWS Secrets Manager en producción.
+
+### Diagrama 6: CI/CD Pipeline (Target)
+
+```mermaid
+graph LR
+    subgraph Dev["👨‍💻 Developer"]
+        Code["Code + Tests"]
+        PR["Pull Request"]
+    end
+
+    subgraph CI["🔄 CI Pipeline"]
+        Build["dotnet build"]
+        Test["dotnet test<br/>13 tests"]
+        Lint["dotnet format"]
+        Security["Security Scan"]
+    end
+
+    subgraph CD["🚀 CD Pipeline"]
+        DockerBuild["docker build"]
+        Push["Push to Registry"]
+        Deploy["Deploy to Cloud"]
+    end
+
+    subgraph Cloud["☁️ Cloud"]
+        AzureContainer["Azure Container Apps"]
+        AWSContainer["AWS ECS/Fargate"]
+        Monitoring["Application Insights<br/>CloudWatch"]
+    end
+
+    Code --> PR
+    PR --> Build
+    Build --> Test
+    Test --> Lint
+    Lint --> Security
+    Security --> DockerBuild
+    DockerBuild --> Push
+    Push --> Deploy
+    Deploy --> AzureContainer
+    Deploy --> AWSContainer
+    AzureContainer --> Monitoring
+    AWSContainer --> Monitoring
+
+    style CI fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style CD fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
+    style Cloud fill:#fce4ec,stroke:#c62828,stroke-width:2px
+```
+
+> 🚀 **CI/CD**: Build → Test (13 unit tests) → Security Scan → Docker Build → Push Registry → Deploy Azure/AWS → Monitor.
+
 ## Características Principales
 
 - Gestión completa de **Películas** y **Categorías** (CRUD)
@@ -81,6 +386,8 @@ dotnet run --project ApiPeliculas --launch-profile http
 La API estará disponible en:
 - **Swagger UI**: `http://localhost:5103/swagger`
 - **API Base**: `http://localhost:5103`
+
+
 
 ## Estructura del Proyecto
 
@@ -394,6 +701,23 @@ builder.Services.AddCors(p => p.AddPolicy("PoliticaCors", build =>
 | **Producción** | Azure Key Vault / AWS Secrets Manager | Configurado en CI/CD |
 
 > ⚠️ **Nota**: El proyecto está configurado para desarrollo local. En producción, usa Azure Key Vault o AWS Secrets Manager para secrets y connection strings.
+
+## 🤖 Development with AI Tools
+
+Este proyecto fue desarrollado aprovechando **OpenCode** (agentes de IA personalizados) para acelerar la implementación y mejorar la calidad:
+
+- **Testing**: 13 unit tests con xUnit/Moq implementados en tiempo reducido
+- **Logging**: Configuración profesional de Serilog (JSON, enriquecimiento, request tracking)
+- **Infrastructure**: Docker Compose con health checks y service orchestration
+- **Security**: Secrets management (User Secrets + environment variables)
+- **Documentation**: Contexto del proyecto y guías arquitectónicas generadas automáticamente
+
+Ver [`AI_development_workflow.md`](./AI_development_workflow.md) para detalles específicos sobre:
+- Cómo se usó OpenCode en cada componente
+- Validación y testing de outputs generados por IA
+- Impacto en productividad y calidad (66% más rápido)
+
+**Enfoque:** IA como amplificador de habilidades técnicas, no como reemplazo. El agente arquitecto toma decisiones de diseño y el agente desarrollador ejecuta implementaciones, con validación humana en cada paso.
 
 ## Convenciones del Proyecto
 
